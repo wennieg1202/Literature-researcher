@@ -103,11 +103,19 @@ def _paper_to_bibtex(paper: Paper, key: str, include_abstract: bool) -> str:
 
 
 def _escape_bibtex(s: str) -> str:
-    """Minimal BibTeX escaping: wrap in braces to preserve case, escape special chars."""
-    # Remove null bytes and control chars
+    """Escape string for use inside BibTeX {value} delimiters."""
+    # Remove control characters
     s = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", s)
-    # Escape backslash and braces
-    s = s.replace("\\", "\\\\")
+    # Escape LaTeX-active characters that are dangerous inside BibTeX values
+    # Order matters: backslash first
+    s = s.replace("\\", "\\textbackslash{}")
+    s = s.replace("%", "\\%")
+    s = s.replace("&", "\\&")
+    s = s.replace("_", "\\_")
+    s = s.replace("#", "\\#")
+    s = s.replace("$", "\\$")
+    s = s.replace("^", "\\^{}")
+    s = s.replace("~", "\\~{}")
     # Trim to reasonable length
     if len(s) > 2000:
         s = s[:2000] + "..."
