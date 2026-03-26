@@ -43,8 +43,8 @@ def run_wizard() -> SearchConfig:
     console = Console()
     console.print(Panel(
         Text.from_markup(
-            "[bold blue]Literature Search Agent[/bold blue]\n"
-            "[dim]Interactive search wizard — press Enter to confirm each choice[/dim]"
+            "[bold blue]文献搜索助手[/bold blue]\n"
+            "[dim]用方向键选择，Enter 确认，Ctrl-C 退出[/dim]"
         ),
         expand=False,
         border_style="blue",
@@ -98,20 +98,11 @@ def run_wizard() -> SearchConfig:
 
     # ── Step 2: Search mode ───────────────────────────────────────────────────
     mode_choice = questionary.select(
-        "Search goal:",
+        "搜索目标：",
         choices=[
-            questionary.Choice(
-                "Balanced  —  mix of foundational and recent works  (default)",
-                value="balanced",
-            ),
-            questionary.Choice(
-                "Classic   —  highly cited, foundational works  (pre-2015 emphasis)",
-                value="classic",
-            ),
-            questionary.Choice(
-                "Frontier  —  latest research, 2020+ publications  (emerging trends)",
-                value="frontier",
-            ),
+            questionary.Choice("均衡  —  兼顾经典与近期文献（默认）", value="balanced"),
+            questionary.Choice("经典  —  高被引奠基文献（2015年前为主）", value="classic"),
+            questionary.Choice("前沿  —  最新研究（2020年后发表）", value="frontier"),
         ],
         style=custom_style,
     ).ask()
@@ -121,34 +112,32 @@ def run_wizard() -> SearchConfig:
 
     # ── Step 3: Sociological perspective ─────────────────────────────────────
     perspective_choices = [
-        questionary.Choice("None  —  no specific theoretical lens", value=None),
+        questionary.Choice("无  —  不限定理论视角", value=None),
     ]
     for key, label in sociology.list_perspectives():
-        p = sociology.get_perspective(key)
-        theorists = ", ".join(p["key_theorists"][:3])
         perspective_choices.append(
-            questionary.Choice(f"{label}  [{theorists}]", value=key)
+            questionary.Choice(label, value=key)
         )
 
     perspective_choice = questionary.select(
-        "Sociological perspective:",
+        "社会学理论视角（可选）：",
         choices=perspective_choices,
         style=custom_style,
     ).ask()
 
-    if perspective_choice is False:  # questionary returns False on Ctrl-C
+    if perspective_choice is False:
         sys.exit(0)
 
     # ── Step 4: Max papers ────────────────────────────────────────────────────
     max_papers_choice = questionary.select(
-        "Maximum number of papers to retrieve:",
+        "最多返回篇数：",
         choices=[
-            questionary.Choice("30   —  quick overview", value=30),
-            questionary.Choice("50   —  standard search  (default)", value=50),
-            questionary.Choice("100  —  comprehensive", value=100),
-            questionary.Choice("150  —  exhaustive", value=150),
+            questionary.Choice("30   —  快速了解", value=30),
+            questionary.Choice("50   —  标准搜索（默认）", value=50),
+            questionary.Choice("100  —  深度搜索", value=100),
+            questionary.Choice("150  —  全面搜索", value=150),
         ],
-        default=questionary.Choice("50   —  standard search  (default)", value=50),
+        default=questionary.Choice("50   —  标准搜索（默认）", value=50),
         style=custom_style,
     ).ask()
 
@@ -157,7 +146,7 @@ def run_wizard() -> SearchConfig:
 
     # ── Step 5: Include abstracts ─────────────────────────────────────────────
     include_abstract = questionary.confirm(
-        "Include abstracts in BibTeX output?",
+        "BibTeX 中包含摘要？",
         default=False,
         style=custom_style,
     ).ask()
@@ -166,13 +155,13 @@ def run_wizard() -> SearchConfig:
     save_notion = False
     if config.NOTION_API_KEY and config.NOTION_DATABASE_ID:
         save_notion = questionary.confirm(
-            "Save results to Notion knowledge base?",
+            "搜索结果保存到 Notion？",
             default=True,
             style=custom_style,
         ).ask()
     elif _notion_partially_configured():
         console.print(
-            "[dim]ℹ Notion: set both NOTION_API_KEY and NOTION_DATABASE_ID to enable.[/dim]"
+            "[dim]ℹ Notion：需同时设置 NOTION_API_KEY 和 NOTION_DATABASE_ID。[/dim]"
         )
 
     # ── Step 7: Confirm ───────────────────────────────────────────────────────
@@ -181,7 +170,7 @@ def run_wizard() -> SearchConfig:
                    include_abstract, save_notion)
 
     confirmed = questionary.confirm(
-        "Start search with these settings?",
+        "确认开始搜索？",
         default=True,
         style=custom_style,
     ).ask()
@@ -212,17 +201,18 @@ def _print_summary(
     include_abstract: bool,
     save_notion: bool,
 ) -> None:
+    mode_labels = {"balanced": "均衡", "classic": "经典", "frontier": "前沿"}
     lines = [
-        f"  [bold]Query:[/bold]       {query}",
-        f"  [bold]Mode:[/bold]        {mode}",
-        f"  [bold]Perspective:[/bold] {perspective or 'none'}",
-        f"  [bold]Max papers:[/bold]  {max_papers}",
-        f"  [bold]Abstracts:[/bold]   {'yes' if include_abstract else 'no'}",
-        f"  [bold]Notion:[/bold]      {'yes' if save_notion else 'no'}",
+        f"  [bold]主题：[/bold]   {query}",
+        f"  [bold]模式：[/bold]   {mode_labels.get(mode, mode)}",
+        f"  [bold]视角：[/bold]   {perspective or '无'}",
+        f"  [bold]篇数：[/bold]   {max_papers}",
+        f"  [bold]摘要：[/bold]   {'是' if include_abstract else '否'}",
+        f"  [bold]Notion：[/bold] {'是' if save_notion else '否'}",
     ]
     console.print(Panel(
         "\n".join(lines),
-        title="[bold]Search parameters[/bold]",
+        title="[bold]搜索参数确认[/bold]",
         expand=False,
         border_style="dim",
     ))
