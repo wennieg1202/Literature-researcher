@@ -64,8 +64,8 @@ def run_wizard() -> SearchConfig:
 
     # ── Step 1: Query ────────────────────────────────────────────────────────
     query = questionary.text(
-        "What is your research question or topic?",
-        instruction="(tip: ask as a full question for better results, e.g. 'Why do elite networks reproduce inequality?')",
+        "研究主题或问题（输入中英文均可）",
+        instruction="例如：'AI 对组织结构的影响' 或 'Why do elite networks reproduce inequality?'",
         style=custom_style,
     ).ask()
 
@@ -73,6 +73,28 @@ def run_wizard() -> SearchConfig:
         console.print("[yellow]No query entered. Exiting.[/yellow]")
         sys.exit(0)
     query = query.strip()
+
+    # Warn if user pasted a Boolean string
+    if _looks_like_boolean(query):
+        console.print(
+            "\n[yellow]提示：检测到 Boolean 查询语法（AND/OR/引号）。[/yellow]\n"
+            "  向导会自动把你的主题扩展成搜索词，\n"
+            "  建议改用自然语言描述，例如：\n"
+            "  [cyan]society of thought collective intelligence multi-agent sociology[/cyan]\n"
+        )
+        keep = questionary.confirm(
+            "继续使用这个 Boolean 查询？",
+            default=False,
+            style=custom_style,
+        ).ask()
+        if not keep:
+            query = questionary.text(
+                "请重新输入（自然语言）",
+                style=custom_style,
+            ).ask()
+            if not query or not query.strip():
+                sys.exit(0)
+            query = query.strip()
 
     # ── Step 2: Search mode ───────────────────────────────────────────────────
     mode_choice = questionary.select(
@@ -209,3 +231,13 @@ def _print_summary(
 
 def _notion_partially_configured() -> bool:
     return bool(config.NOTION_API_KEY) != bool(config.NOTION_DATABASE_ID)
+
+
+def _looks_like_boolean(query: str) -> bool:
+    """Return True if the query looks like a Boolean search string."""
+    import re
+    q = query.upper()
+    has_boolean = bool(re.search(r'\b(AND|OR|NOT)\b', q))
+    has_quotes = query.count('"') >= 2
+    has_parens = "(" in query and ")" in query
+    return (has_boolean and (has_quotes or has_parens))
