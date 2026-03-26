@@ -26,6 +26,7 @@ from .skills import query_expand, search_apis
 from .skills.dedup import deduplicate, rank
 from .skills.snowball import snowball
 from .skills.export import export_bibtex, summarize
+from .skills.notion_export import export_to_notion
 from . import sociology
 
 
@@ -38,6 +39,7 @@ async def run(
     include_abstract: bool = False,
     mode: str = "balanced",
     perspective: Optional[str] = None,
+    save_notion: bool = False,
 ) -> None:
     console = Console()
     cache = get_cache(enabled=use_cache)
@@ -149,6 +151,13 @@ async def run(
             summary=summary,
             mode=mode,
             perspective=perspective,
+        )
+
+    # ── Step 10: Notion export ────────────────────────────────────────────────
+    if save_notion:
+        console.print("[bold]Saving to Notion...[/bold]")
+        await export_to_notion(
+            papers, query, mode=mode, perspective=perspective, console=console
         )
 
     console.print()

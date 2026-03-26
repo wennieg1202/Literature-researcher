@@ -41,6 +41,8 @@ MAX_TOKENS_SUMMARIZE  = 1200
 ANTHROPIC_API_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
 CROSSREF_EMAIL       = os.getenv("CROSSREF_EMAIL", "")
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "")
+NOTION_API_KEY       = os.getenv("NOTION_API_KEY", "")
+NOTION_DATABASE_ID   = os.getenv("NOTION_DATABASE_ID", "")
 
 # ── HTTP headers ───────────────────────────────────────────────────────────────
 _contact = f" (mailto:{CROSSREF_EMAIL})" if CROSSREF_EMAIL else ""
