@@ -90,11 +90,11 @@ async def run(
         console.print(f"[cyan]Research question reframed as:[/cyan]")
         console.print(f"  [italic]{expanded['question_reframe']}[/italic]")
 
-    console.print(f"[cyan]Expanded to {len(terms)} search terms:[/cyan]")
-    for t in terms:
-        console.print(f"  • {t}")
-    if expanded.get("scope_note"):
-        console.print(f"  [dim]{expanded['scope_note']}[/dim]")
+    scope = expanded.get("scope_note", "")
+    console.print(
+        f"[cyan]Query expanded to {len(terms)} search terms.[/cyan]"
+        + (f"  [dim]{scope}[/dim]" if scope else "")
+    )
     console.print()
 
     # Show perspective seed works if applicable
