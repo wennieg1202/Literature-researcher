@@ -1,6 +1,28 @@
 """All constants and environment-variable configuration in one place."""
 
 import os
+from pathlib import Path
+
+
+def _load_dotenv() -> None:
+    """Load .env file from the project root (one level up from this file)."""
+    env_path = Path(__file__).parent.parent / ".env"
+    if not env_path.exists():
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip()
+            # Only set if not already in environment (env vars take priority)
+            if key and not os.environ.get(key):
+                os.environ[key] = value
+
+
+_load_dotenv()
 
 # ── API endpoints ─────────────────────────────────────────────────────────────
 OPENALEX_BASE   = "https://api.openalex.org/works"
