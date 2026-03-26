@@ -23,6 +23,8 @@ def export_bibtex(
     include_abstract: bool = False,
     query: str = "",
     summary: Optional[str] = None,
+    mode: str = "balanced",
+    perspective: Optional[str] = None,
 ) -> int:
     """Write papers to a .bib file. Returns number of entries written."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -33,6 +35,10 @@ def export_bibtex(
     lines.append(f"% Literature search results")
     if query:
         lines.append(f"% Query: {query}")
+    if mode != "balanced":
+        lines.append(f"% Mode: {mode}")
+    if perspective:
+        lines.append(f"% Perspective: {perspective}")
     lines.append(f"% Total entries: {len(papers)}")
     lines.append(f"% Sources: {_source_summary(papers)}")
     lines.append("")
@@ -132,8 +138,13 @@ def _source_summary(papers: list[Paper]) -> str:
 
 # ── Claude summary ─────────────────────────────────────────────────────────────
 
-def summarize(papers: list[Paper], query: str) -> Optional[str]:
-    """Generate a ~300-word literature landscape via Claude. Returns None if unavailable."""
+def summarize(
+    papers: list[Paper],
+    query: str,
+    mode: str = "balanced",
+    perspective: Optional[str] = None,
+) -> Optional[str]:
+    """Generate a literature landscape via Claude. Returns None if unavailable."""
     if not config.ANTHROPIC_API_KEY:
         return None
 
@@ -145,16 +156,52 @@ def summarize(papers: list[Paper], query: str) -> Optional[str]:
             authors += " et al."
         snippet = (p.abstract or "No abstract available.")[:400]
         abstracts.append(
-            f"[{i}] {p.title} ({authors}, {p.year})\n{snippet}"
+            f"[{i}] {p.title} ({authors}, {p.year}, citations: {p.citation_count})\n{snippet}"
         )
 
     context = "\n\n".join(abstracts)
+
+    # Mode-specific framing
+    mode_instruction = {
+        "classic": (
+            "Focus on the foundational contributions, theoretical lineages, and how "
+            "these seminal works shaped subsequent scholarship. Identify the key debates "
+            "that have defined this field."
+        ),
+        "frontier": (
+            "Focus on the emerging trends, recent theoretical innovations, and open questions. "
+            "Highlight how recent work extends, challenges, or departs from earlier traditions. "
+            "Identify the most active research fronts."
+        ),
+        "balanced": (
+            "Synthesise key themes, debates, and gaps across both foundational and recent papers. "
+            "Be analytical, not merely descriptive."
+        ),
+    }.get(mode, "")
+
+    # Perspective-specific framing
+    perspective_instruction = ""
+    if perspective:
+        try:
+            from .. import sociology
+            p_info = sociology.get_perspective(perspective)
+            if p_info:
+                perspective_instruction = (
+                    f"\n\nRead these papers through the lens of {p_info['label']}. "
+                    f"Connect findings to key concepts such as: "
+                    f"{', '.join(p_info['core_concepts'][:5])}. "
+                    f"Where relevant, note how the work relates to "
+                    f"{', '.join(p_info['key_theorists'][:4])}."
+                )
+        except Exception:
+            pass
+
     prompt = (
         f'Research query: "{query}"\n\n'
         f"Top papers found (with abstracts):\n\n{context}\n\n"
-        "Write a 250-350 word literature landscape synthesising the key themes, "
-        "debates, and gaps across these papers. Be analytical, not merely descriptive. "
-        "Reference papers by author and year."
+        f"Write a 280-360 word literature landscape. {mode_instruction}"
+        f"{perspective_instruction}\n\n"
+        "Reference papers by author and year. End with one sentence identifying the key open question."
     )
 
     try:

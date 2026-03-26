@@ -128,10 +128,28 @@ def _merge(base: Paper, other: Paper) -> Paper:
     )
 
 
-def rank(papers: list[Paper]) -> list[Paper]:
-    """Assign relevance_score and return sorted list (descending)."""
+_CURRENT_YEAR = 2025  # anchor for recency scoring
+
+
+def rank(papers: list[Paper], mode: str = "balanced") -> list[Paper]:
+    """Assign relevance_score and return sorted list (descending).
+
+    Modes:
+      balanced  — log(citations+1) + 2×sources  (default)
+      classic   — 3×log(citations+1) + sources  (heavily rewards citation count)
+      frontier  — 3×recency + log(citations+1) + sources  (rewards recent papers)
+    """
     for p in papers:
-        # log-scaled citation count + bonus for appearing in multiple sources
-        p.relevance_score = math.log1p(p.citation_count) + 2.0 * len(p.sources)
+        citation_score = math.log1p(p.citation_count)
+        source_bonus = 2.0 * len(p.sources)
+        recency_score = max(0.0, (p.year or 0) - 2018) * 1.5 if p.year else 0.0
+
+        if mode == "classic":
+            p.relevance_score = 3.0 * citation_score + source_bonus
+        elif mode == "frontier":
+            p.relevance_score = 3.0 * recency_score + citation_score + source_bonus
+        else:  # balanced
+            p.relevance_score = citation_score + source_bonus
+
     papers.sort(key=lambda p: p.relevance_score, reverse=True)
     return papers
