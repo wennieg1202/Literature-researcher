@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lit-search"
+version = "0.1.0"
+description = "AI-powered literature search agent — Google Scholar in your terminal"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.25.0",
+    "httpx>=0.27.0",
+    "rapidfuzz>=3.6.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+lit-search = "lit_search.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lit_search*"]
