@@ -25,11 +25,17 @@ def export_bibtex(
     summary: Optional[str] = None,
     mode: str = "balanced",
     perspective: Optional[str] = None,
+    extra_header: Optional[str] = None,
 ) -> int:
     """Write papers to a .bib file. Returns number of entries written."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
+
+    # Extra header (e.g. AI-generated warning)
+    if extra_header:
+        lines.append(extra_header.rstrip())
+        lines.append("")
 
     # Header comment
     lines.append(f"% Literature search results")

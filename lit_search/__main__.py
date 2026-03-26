@@ -63,6 +63,12 @@ def main() -> None:
     args = parser.parse_args()
     output_path = args.output or _default_output(args.query)
 
+    if args.claude_only and not config.ANTHROPIC_API_KEY:
+        Console().print(
+            "[bold red]Error:[/bold red] --claude-only requires ANTHROPIC_API_KEY to be set."
+        )
+        sys.exit(1)
+
     console = Console()
     try:
         asyncio.run(
@@ -76,6 +82,7 @@ def main() -> None:
                 mode=args.mode,
                 perspective=args.perspective,
                 save_notion=args.save_notion,
+                claude_only=args.claude_only,
             )
         )
     except KeyboardInterrupt:
@@ -151,6 +158,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print available sociological perspectives and exit")
     parser.add_argument("--interactive", "-i", action="store_true",
         help="Launch interactive wizard (ignores all other flags)")
+    parser.add_argument("--claude-only", action="store_true",
+        help="Skip all external APIs; generate bibliography from Claude's training knowledge "
+             "(requires ANTHROPIC_API_KEY; fast but verify results before citing)")
     return parser
 
 

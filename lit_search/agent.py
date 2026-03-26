@@ -23,6 +23,7 @@ from . import config
 from .cache import get_cache
 from .models import Paper
 from .skills import query_expand, search_apis
+from .skills.query_expand import claude_bibliography
 from .skills.dedup import deduplicate, rank
 from .skills.snowball import snowball
 from .skills.export import export_bibtex, summarize
@@ -40,6 +41,7 @@ async def run(
     mode: str = "balanced",
     perspective: Optional[str] = None,
     save_notion: bool = False,
+    claude_only: bool = False,
 ) -> None:
     console = Console()
     cache = get_cache(enabled=use_cache)
@@ -62,6 +64,20 @@ async def run(
             console.print(f"[bold]Perspective:[/bold] {p_info['label']}")
             console.print(f"  [dim]{p_info['description']}[/dim]")
     console.print()
+
+    # ── Claude-only mode: skip all external APIs ──────────────────────────────
+    if claude_only:
+        await _run_claude_only(
+            console=console,
+            query=query,
+            output_path=output_path,
+            max_papers=max_papers,
+            include_abstract=include_abstract,
+            mode=mode,
+            perspective=perspective,
+            save_notion=save_notion,
+        )
+        return
 
     # ── Step 1: Query expansion ───────────────────────────────────────────────
     with _spinner(console, "Expanding query with Claude..."):
@@ -170,6 +186,79 @@ async def run(
         console.print(summary)
 
     # Source breakdown
+    _print_source_stats(console, papers)
+    _print_year_distribution(console, papers)
+
+
+async def _run_claude_only(
+    console: Console,
+    query: str,
+    output_path: str,
+    max_papers: int,
+    include_abstract: bool,
+    mode: str,
+    perspective: Optional[str],
+    save_notion: bool,
+) -> None:
+    """Claude-only pipeline: no external APIs, bibliography from training knowledge."""
+    console.print(
+        "[bold yellow]⚡ Claude-only mode[/bold yellow] — bibliography from AI training knowledge"
+    )
+    console.print(
+        "[dim]Papers are generated from Claude's knowledge (cutoff Aug 2025). "
+        "Verify DOIs before citing.[/dim]\n"
+    )
+
+    with _spinner(console, "Asking Claude to generate bibliography..."):
+        papers = await claude_bibliography(
+            query=query,
+            max_papers=max_papers,
+            mode=mode,
+            perspective=perspective,
+        )
+
+    console.print(f"[cyan]Claude generated {len(papers)} paper entries.[/cyan]\n")
+
+    from .skills.dedup import deduplicate, rank
+    papers = deduplicate(papers)
+    papers = rank(papers, mode=mode)
+
+    if len(papers) > max_papers:
+        papers = papers[:max_papers]
+
+    summary: Optional[str] = None
+    if config.ANTHROPIC_API_KEY:
+        with _spinner(console, "Generating literature landscape summary..."):
+            summary = summarize(papers, query, mode=mode, perspective=perspective)
+
+    with _spinner(console, f"Writing {output_path}..."):
+        n = export_bibtex(
+            papers,
+            output_path,
+            include_abstract=include_abstract,
+            query=query,
+            summary=summary,
+            mode=mode,
+            perspective=perspective,
+            extra_header=(
+                "% ⚠ WARNING: Papers generated from Claude's training knowledge (cutoff Aug 2025).\n"
+                "% Verify all DOIs and details before citing. Some entries may be inaccurate.\n"
+            ),
+        )
+
+    if save_notion:
+        console.print("[bold]Saving to Notion...[/bold]")
+        await export_to_notion(
+            papers, query, mode=mode, perspective=perspective, console=console
+        )
+
+    console.print()
+    console.rule("[bold green]Done[/bold green]")
+    console.print(f"[bold green]✓ {n} entries → {output_path}[/bold green]")
+    if summary:
+        console.print()
+        console.print("[bold]Literature Landscape:[/bold]")
+        console.print(summary)
     _print_source_stats(console, papers)
     _print_year_distribution(console, papers)
 

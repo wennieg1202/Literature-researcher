@@ -202,6 +202,108 @@ def _fallback(query: str) -> dict:
     }
 
 
+# ── Claude-only bibliography generation ──────────────────────────────────────
+
+_CLAUDE_BIB_SYSTEM = """\
+You are an expert academic librarian. Generate a bibliography of real, verifiable academic papers \
+based on your training knowledge. Return ONLY a valid JSON array — no markdown fences, no commentary.
+
+Each element must match this schema:
+{
+  "title": "Full paper title",
+  "authors": ["Last, First", "Last, First"],
+  "year": 2019,
+  "venue": "Journal or conference name",
+  "doi": "10.xxxx/xxxxx",
+  "abstract": "One or two sentence abstract (optional)",
+  "entry_type": "article"
+}
+
+Rules:
+- Only include papers you are highly confident exist.
+- If unsure of a DOI, omit the field entirely (do not guess).
+- entry_type must be one of: article, book, inproceedings, misc
+- Year must be an integer, not a string.
+- Return between 20 and {max_papers} entries.
+"""
+
+_CLAUDE_BIB_PERSPECTIVE = """\
+
+Additional constraint — focus on papers from this theoretical tradition:
+{context}
+"""
+
+
+async def claude_bibliography(
+    query: str,
+    max_papers: int = 50,
+    mode: str = "balanced",
+    perspective: str | None = None,
+) -> list:
+    """Ask Claude to generate a bibliography from training knowledge.
+
+    Returns a list of Paper objects. Each has sources=['claude_knowledge'].
+    Requires ANTHROPIC_API_KEY.
+    """
+    import anthropic
+    from ..models import Author, Paper
+    from .. import sociology
+
+    perspective_section = ""
+    if perspective:
+        ctx = sociology.perspective_context(perspective)
+        if ctx:
+            perspective_section = _CLAUDE_BIB_PERSPECTIVE.format(context=ctx)
+
+    mode_note = ""
+    if mode == "classic":
+        mode_note = "\nPrefer highly cited, foundational papers (1960s–2010s)."
+    elif mode == "frontier":
+        mode_note = "\nPrefer recent papers published 2020 or later."
+
+    system = _CLAUDE_BIB_SYSTEM.format(max_papers=max_papers) + perspective_section + mode_note
+
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    msg = client.messages.create(
+        model=config.CLAUDE_MODEL,
+        max_tokens=4096,
+        system=system,
+        messages=[{"role": "user", "content": f"Generate bibliography for: {query}"}],
+    )
+    text = msg.content[0].text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+
+    raw = json.loads(text)
+    papers: list[Paper] = []
+    for item in raw:
+        if not isinstance(item, dict) or not item.get("title"):
+            continue
+        authors = [
+            Author(name=a) for a in item.get("authors", []) if isinstance(a, str)
+        ]
+        year = item.get("year")
+        if isinstance(year, str):
+            try:
+                year = int(year)
+            except ValueError:
+                year = None
+        papers.append(
+            Paper(
+                title=item["title"],
+                authors=authors,
+                year=year,
+                doi=item.get("doi"),
+                venue=item.get("venue"),
+                abstract=item.get("abstract"),
+                entry_type_hint=item.get("entry_type", "article"),
+                sources=["claude_knowledge"],
+                citation_count=0,
+            )
+        )
+    return papers
+
+
 # ── Term list extraction ──────────────────────────────────────────────────────
 
 def all_terms(expanded: dict) -> list[str]:

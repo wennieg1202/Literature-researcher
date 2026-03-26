@@ -95,6 +95,25 @@ python -m lit_search 'How does professional jurisdiction shape AI adoption?' \
   --max-papers 50
 ```
 
+### 离线模式（仅 Claude，无需网络）
+
+```bash
+# 不调用任何学术 API，由 Claude 从训练知识生成文献列表
+# 适合网络受限 / 快速探索 / 沙盒环境
+python -m lit_search "institutional logics" --claude-only
+
+# 搭配其他参数使用
+python -m lit_search 'How does professional jurisdiction shape AI adoption?' \
+  --claude-only \
+  --mode frontier \
+  --perspective profession \
+  --max-papers 40 \
+  --save-notion
+```
+
+> ⚠ **注意**：`--claude-only` 生成的文献来自 Claude 的训练数据（截至 2025 年 8 月），DOI 可能有误。
+> 引用前请在 Google Scholar 核实。
+
 ### 常用参数
 
 | 参数 | 默认值 | 说明 |
@@ -104,6 +123,7 @@ python -m lit_search 'How does professional jurisdiction shape AI adoption?' \
 | `--output FILE` | 自动生成 | 指定 .bib 文件路径 |
 | `--include-abstract` | 关闭 | BibTeX 中包含摘要 |
 | `--no-cache` | 关闭 | 不使用缓存，强制重新抓取 |
+| `--claude-only` | 关闭 | 跳过所有外部 API，由 Claude 直接生成文献列表 |
 
 ---
 
