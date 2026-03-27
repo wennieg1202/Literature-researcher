@@ -5,3 +5,4 @@ __pycache__/
 .venv/
 downloads/
 *.pdf
+.claude/settings.local.json
