@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "scihub": {
+      "command": "python3",
+      "args": ["scihub_mcp/sci_hub_server.py"],
+      "cwd": "/home/user/Literature-researcher"
+    }
+  }
+}
