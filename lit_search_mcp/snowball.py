@@ -69,13 +69,25 @@ async def _s2_expand(paper: Paper, client: httpx.AsyncClient,
     return results
 
 
+def _is_relevant(paper: Paper, filter_terms: List[str]) -> bool:
+    """Return True if the paper title contains at least one filter term."""
+    if not filter_terms:
+        return True
+    text = (paper.title or "").lower()
+    return any(t.lower() in text for t in filter_terms)
+
+
 async def snowball(
     seed_papers: List[Paper],
     top_n: int = 5,
     cache: Optional[Cache] = None,
+    filter_terms: Optional[List[str]] = None,
 ) -> List[Paper]:
     """
     Expand top_n seed papers via 1-hop snowballing.
+    filter_terms: if provided, only keep new papers whose titles contain
+    at least one of these terms (prevents citation-graph drift into
+    unrelated disciplines).
     Returns the new papers found (not deduplicated against seeds yet).
     """
     seeds = seed_papers[:top_n]
@@ -88,4 +100,11 @@ async def snowball(
     for res in results:
         if isinstance(res, list):
             new_papers.extend(res)
+
+    if filter_terms:
+        before = len(new_papers)
+        new_papers = [p for p in new_papers if _is_relevant(p, filter_terms)]
+        log.info("Snowball relevance filter: %d → %d papers (kept %d)",
+                 before, len(new_papers), len(new_papers))
+
     return new_papers

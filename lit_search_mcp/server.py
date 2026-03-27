@@ -95,9 +95,23 @@ async def search_literature(
 
     # 4. Optional snowballing
     if do_snowball and ranked:
-        snow_papers = await snowball(ranked, top_n=5, cache=_cache)
+        primary_terms = expanded.get("primary_terms", terms[:4])
+
+        # Prefer seeds that have at least one primary term in their title
+        # (avoids using high-citation methodology papers as seeds)
+        def _title_hits(p: Paper) -> int:
+            text = (p.title or "").lower()
+            return sum(1 for t in primary_terms if t.lower() in text)
+
+        topical_seeds = [p for p in ranked if _title_hits(p) >= 1]
+        seeds = (topical_seeds or ranked)[:5]  # fall back to top-5 if no match
+
+        snow_papers = await snowball(seeds, top_n=5, cache=_cache,
+                                     filter_terms=primary_terms)
+        snow_added = len(snow_papers)
         combined = dedup(ranked + snow_papers)
         ranked = rank(combined, mode=mode)
+        stats_raw["snowball_added"] = snow_added
 
     # Apply mode-based year filter for "frontier"
     if mode == "frontier":
