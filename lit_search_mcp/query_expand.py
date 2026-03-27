@@ -1,59 +1,34 @@
 """
-Claude-powered query expansion.
-Converts a natural-language question or keywords into structured search terms,
-optionally applying a sociology perspective and search mode.
+Query expansion — pure keyword-based, no external API calls.
+Combines the user's query words with perspective seed terms.
+Results are cached in-session to avoid redundant work.
 """
 
 from __future__ import annotations
-import json
 import logging
-import os
-from typing import Optional
 
-from sociology import get_perspective_seeds, get_perspective_label
+from sociology import get_perspective_seeds
 
 log = logging.getLogger(__name__)
 
-# Session-level cache: avoids re-calling Claude for identical query/mode/perspective
 _EXPANSION_CACHE: dict[str, dict] = {}
 
-SYSTEM_PROMPT = """\
-You are an expert academic research assistant specializing in systematic literature search.
-Your task is to expand a user's query into optimized search terms for academic databases.
 
-Given:
-- A query (question or keywords)
-- A search mode: "classic" (foundational/high-citation), "frontier" (recent 2-3 years), or "balanced"
-- An optional sociology perspective with seed terms
-
-Return ONLY a valid JSON object with these fields:
-{
-  "primary_terms": ["term1", "term2", ...],   // 3-6 core search terms
-  "synonyms": ["alt1", "alt2", ...],           // 4-8 synonyms/related concepts
-  "boolean_string": "term1 AND (term2 OR term3)",  // boolean query for databases
-  "scope_note": "one sentence explaining the search strategy",
-  "question_reframe": "the query reframed as a precise academic question"
-}
-
-Guidelines:
-- For "classic" mode: include established theoretical terms, key author names
-- For "frontier" mode: include "recent", "emerging", "new", contemporary terms
-- For "balanced" mode: mix both
-- Incorporate any provided perspective seed terms where relevant
-- Keep terms concise and database-friendly (no full sentences)
-"""
-
-
-def _fallback_expand(query: str, perspective: str, mode: str) -> dict:
-    """Simple fallback when Claude is unavailable."""
+def _expand(query: str, perspective: str, mode: str) -> dict:
     terms = [t.strip() for t in query.replace("?", " ").split() if len(t.strip()) > 3]
-    seeds = get_perspective_seeds(perspective)[:3] if perspective else []
-    primary = (terms[:4] + seeds[:2])[:6]
+    seeds = get_perspective_seeds(perspective)[:4] if perspective else []
+    primary = list(dict.fromkeys(terms[:4] + seeds[:2]))[:6]
+    synonyms = list(dict.fromkeys(seeds[2:6] if seeds else terms[4:8]))
+
+    # For "frontier" mode, prepend recency modifiers to the boolean string
+    recency = ' AND ("recent" OR "emerging" OR "new")' if mode == "frontier" else ""
+    boolean_string = " AND ".join(f'"{t}"' for t in primary[:3]) + recency
+
     return {
         "primary_terms": primary,
-        "synonyms": seeds[2:6] if seeds else terms[4:8],
-        "boolean_string": " AND ".join(f'"{t}"' for t in primary[:3]),
-        "scope_note": f"Keyword-based search for: {query}",
+        "synonyms": synonyms,
+        "boolean_string": boolean_string,
+        "scope_note": f"Keyword search ({mode}) for: {query}",
         "question_reframe": query,
     }
 
@@ -63,62 +38,16 @@ async def expand_query(
     mode: str = "balanced",
     perspective: str = "",
 ) -> dict:
-    """
-    Expand query using Claude API.
-    Results are cached in-session: identical (query, mode, perspective) tuples
-    skip the Claude call entirely.
-    Falls back to simple split if ANTHROPIC_API_KEY is not set.
-    """
+    """Return structured search terms for the given query, mode, and perspective.
+    Results are cached per (query, mode, perspective) for the session lifetime."""
     cache_key = f"{query}|{mode}|{perspective}"
-    if cache_key in _EXPANSION_CACHE:
-        log.info("Query expansion cache hit for: %s", query[:60])
-        return _EXPANSION_CACHE[cache_key]
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        log.warning("ANTHROPIC_API_KEY not set, using fallback query expansion")
-        return _fallback_expand(query, perspective, mode)
-
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-
-        perspective_label = get_perspective_label(perspective)
-        seeds = get_perspective_seeds(perspective)
-
-        user_content = f"Query: {query}\nMode: {mode}"
-        if perspective_label:
-            user_content += f"\nPerspective: {perspective_label}"
-        if seeds:
-            user_content += f"\nPerspective seed terms: {', '.join(seeds[:10])}"
-
-        response = client.messages.create(
-            model=os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001"),
-            max_tokens=512,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        text = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text)
-        for field in ("primary_terms", "synonyms", "boolean_string"):
-            if field not in result:
-                raise ValueError(f"Missing field: {field}")
-        _EXPANSION_CACHE[cache_key] = result
-        return result
-    except Exception as e:
-        log.warning("Claude query expansion failed (%s), using fallback", e)
-        fallback = _fallback_expand(query, perspective, mode)
-        _EXPANSION_CACHE[cache_key] = fallback
-        return fallback
+    if cache_key not in _EXPANSION_CACHE:
+        _EXPANSION_CACHE[cache_key] = _expand(query, perspective, mode)
+    return _EXPANSION_CACHE[cache_key]
 
 
 def get_search_terms(expanded: dict) -> list[str]:
-    """Flatten expanded query into a single list of search terms."""
+    """Flatten expanded query into a deduplicated list of search terms."""
     terms = list(expanded.get("primary_terms", []))
     terms += list(expanded.get("synonyms", []))[:4]
-    return list(dict.fromkeys(terms))  # deduplicate, preserve order
+    return list(dict.fromkeys(terms))
