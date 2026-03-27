@@ -1,0 +1,41 @@
+{
+  "time_allocation": {
+    "label": "Time Allocation & Life Course",
+    "theorists": [
+      "Becker",
+      "Hochschild",
+      "Elder",
+      "Moen",
+      "Gershuny",
+      "Anxo"
+    ],
+    "core_concepts": [
+      "time use",
+      "time allocation",
+      "unpaid work",
+      "care time",
+      "leisure time",
+      "time diary",
+      "work-life balance",
+      "double burden",
+      "life course",
+      "time poverty",
+      "temporal autonomy",
+      "domestic labor"
+    ],
+    "seed_terms": [
+      "time allocation caregiving",
+      "time use survey elderly",
+      "unpaid care work time",
+      "Becker household production",
+      "Hochschild second shift",
+      "time diary older adults",
+      "care time life course",
+      "work-life balance aging",
+      "time poverty carers",
+      "domestic labor time",
+      "Elder life course theory",
+      "temporal constraints caregiving"
+    ]
+  }
+}
