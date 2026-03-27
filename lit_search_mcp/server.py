@@ -8,7 +8,8 @@ Exposes 3 tools to Claude Code:
 
 from __future__ import annotations
 import asyncio
-import json
+import datetime
+import httpx
 import logging
 import os
 import sys
@@ -22,10 +23,10 @@ from mcp.server.fastmcp import FastMCP
 
 from cache import Cache
 from dedup import dedup, rank
-from models import Paper
-from notion_export import export_papers_to_notion
+from models import Author, Paper
+from notion_export import export_summary_to_notion
 from query_expand import expand_query, get_search_terms
-from search_apis import multi_search, ALL_SOURCES
+from search_apis import multi_search
 from snowball import snowball
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
@@ -115,7 +116,6 @@ async def search_literature(
 
     # Apply mode-based year filter for "frontier"
     if mode == "frontier":
-        import datetime
         cutoff = datetime.datetime.now().year - 2
         frontier = [p for p in ranked if p.year and p.year >= cutoff]
         # Keep at least 10 results even if filter is aggressive
@@ -146,43 +146,52 @@ async def search_literature(
 @mcp.tool()
 async def export_to_notion(
     papers: List[Dict[str, Any]],
+    query: str = "",
+    mode: str = "balanced",
+    perspective: str = "",
+    stats: Optional[Dict[str, Any]] = None,
     notion_token: Optional[str] = None,
     database_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Export a list of papers to a Notion database.
+    Export search results as a single summary page in Notion.
 
-    The default database is the Literature Knowledge Library.
-    Fields written: Name (title), Year, Authors, DOI, Venue, Citations,
-                    URL, Status (= "To Read"), and the abstract as page body.
+    Creates ONE page containing the search parameters and a ranked paper list
+    (top 50). Uses at most 2 API calls regardless of result size.
 
     Args:
         papers: List of paper dicts as returned by search_literature.
-        notion_token: Notion integration token. Defaults to the built-in token.
-        database_id: Notion database ID. Defaults to the Literature Knowledge Library.
+        query: Original search query (used as page title context).
+        mode: Search mode used ("classic", "frontier", "balanced").
+        perspective: Sociology perspective used, if any.
+        stats: Stats dict from search_literature (source breakdown, counts).
+        notion_token: Notion integration token. Defaults to env NOTION_API_KEY.
+        database_id: Notion database ID. Defaults to env NOTION_DATABASE_ID.
 
     Returns:
-        {"pushed": N, "skipped": M, "errors": [...]}
+        {"page_id": ..., "url": ..., "papers_shown": N, "total_papers": N, "errors": [...]}
     """
-    paper_objects: List[Paper] = []
-    for d in papers:
-        from models import Author
-        p = Paper(
+    paper_objects = [
+        Paper(
             title=d.get("title") or "Untitled",
             year=d.get("year"),
             authors=[Author(name=a) for a in (d.get("authors") or [])],
-            abstract=d.get("abstract"),
             doi=d.get("doi"),
-            venue=d.get("venue"),
             url=d.get("url"),
             pdf_url=d.get("pdf_url"),
             citation_count=d.get("citation_count", 0),
-            sources=d.get("sources", []),
         )
-        paper_objects.append(p)
-
-    result = await export_papers_to_notion(paper_objects, notion_token, database_id)
-    return result
+        for d in papers
+    ]
+    return await export_summary_to_notion(
+        papers=paper_objects,
+        query=query,
+        mode=mode,
+        perspective=perspective,
+        stats=stats or {},
+        notion_token=notion_token,
+        database_id=database_id,
+    )
 
 
 # ─── Tool 3: download_pdfs ────────────────────────────────────────────────────
@@ -218,8 +227,6 @@ async def download_pdfs(
 
     downloaded = []
     failed = []
-
-    import httpx
 
     for paper in papers:
         title = paper.get("title") or "unknown"

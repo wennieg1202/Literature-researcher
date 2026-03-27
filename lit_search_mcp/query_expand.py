@@ -14,6 +14,9 @@ from sociology import get_perspective_seeds, get_perspective_label
 
 log = logging.getLogger(__name__)
 
+# Session-level cache: avoids re-calling Claude for identical query/mode/perspective
+_EXPANSION_CACHE: dict[str, dict] = {}
+
 SYSTEM_PROMPT = """\
 You are an expert academic research assistant specializing in systematic literature search.
 Your task is to expand a user's query into optimized search terms for academic databases.
@@ -62,9 +65,15 @@ async def expand_query(
 ) -> dict:
     """
     Expand query using Claude API.
+    Results are cached in-session: identical (query, mode, perspective) tuples
+    skip the Claude call entirely.
     Falls back to simple split if ANTHROPIC_API_KEY is not set.
-    Returns a dict with primary_terms, synonyms, boolean_string, scope_note, question_reframe.
     """
+    cache_key = f"{query}|{mode}|{perspective}"
+    if cache_key in _EXPANSION_CACHE:
+        log.info("Query expansion cache hit for: %s", query[:60])
+        return _EXPANSION_CACHE[cache_key]
+
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         log.warning("ANTHROPIC_API_KEY not set, using fallback query expansion")
@@ -96,14 +105,16 @@ async def expand_query(
             if text.startswith("json"):
                 text = text[4:]
         result = json.loads(text)
-        # Validate required fields
         for field in ("primary_terms", "synonyms", "boolean_string"):
             if field not in result:
                 raise ValueError(f"Missing field: {field}")
+        _EXPANSION_CACHE[cache_key] = result
         return result
     except Exception as e:
         log.warning("Claude query expansion failed (%s), using fallback", e)
-        return _fallback_expand(query, perspective, mode)
+        fallback = _fallback_expand(query, perspective, mode)
+        _EXPANSION_CACHE[cache_key] = fallback
+        return fallback
 
 
 def get_search_terms(expanded: dict) -> list[str]:
