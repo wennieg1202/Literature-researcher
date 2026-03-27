@@ -41,16 +41,15 @@ def _headers() -> dict:
 # ── Database schema bootstrap ─────────────────────────────────────────────────
 
 _SCHEMA = {
-    "Title": {"title": {}},
-    "Authors": {"rich_text": {}},
-    "Year": {"number": {"format": "number"}},
-    "DOI": {"url": {}},
-    "Venue": {"rich_text": {}},
-    "Abstract": {"rich_text": {}},
-    "Sources": {"multi_select": {}},
+    "Authors":        {"rich_text": {}},
+    "Year":           {"number": {"format": "number"}},
+    "DOI":            {"url": {}},
+    "Venue":          {"rich_text": {}},
+    "Abstract":       {"rich_text": {}},
+    "Sources":        {"multi_select": {}},
     "Citation Count": {"number": {"format": "number"}},
-    "Search Query": {"rich_text": {}},
-    "Mode": {"select": {"options": [
+    "Search Query":   {"rich_text": {}},
+    "Mode":           {"select": {"options": [
         {"name": "balanced", "color": "default"},
         {"name": "classic",  "color": "blue"},
         {"name": "frontier", "color": "green"},
@@ -99,7 +98,7 @@ def _paper_to_page(
     doi_clean = paper.doi if paper.doi and not paper.doi.startswith("isbn:") else None
 
     props: dict = {
-        "Title": {
+        "Name": {
             "title": [{"text": {"content": (paper.title or "Untitled")[:2000]}}]
         },
         "Authors":        {"rich_text": _rich_text(authors_str)},
@@ -166,8 +165,12 @@ async def export_to_notion(
                     await asyncio.sleep(0.35)  # stay under rate limit
                     if r.status_code in (200, 201):
                         return True
+                    if console:
+                        console.print(f"  [dim red]Notion error {r.status_code}: {r.text[:200]}[/dim red]")
                     return False
-                except Exception:
+                except Exception as e:
+                    if console:
+                        console.print(f"  [dim red]Notion exception: {e}[/dim red]")
                     return False
 
         tasks = [create_page(p) for p in papers]
