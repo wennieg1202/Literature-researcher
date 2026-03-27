@@ -1,0 +1,44 @@
+Run a full literature search and push results to Notion.
+
+Arguments: $ARGUMENTS
+
+---
+
+Parse $ARGUMENTS as follows (all optional except query):
+- First quoted string or the full input = **query**
+- `classic` / `frontier` / `balanced` = **mode** (default: balanced)
+- `profession` / `organization` / `symbolic` / `stratification` / `network` / `knowledge` = **perspective** (default: none)
+- `snowball` = set do_snowball=true
+- A number (e.g. `30`) = **max_results** (default: 20)
+
+If $ARGUMENTS is empty, ask the user for a query before proceeding.
+
+---
+
+**Step 1 — Search**
+
+Call `mcp__lit_search__search_literature` with the parsed parameters.
+Show the user a brief status while it runs.
+When done, report:
+- Total papers found and after dedup
+- Source breakdown (by_source from stats)
+- Top 5 paper titles with year and citation count
+
+**Step 2 — Export to Notion**
+
+Immediately call `mcp__lit_search__export_to_notion` with:
+- papers = the full papers list from Step 1
+- query, mode, perspective = same values used in Step 1
+- stats = the stats dict from Step 1
+
+Report the Notion page URL when done.
+
+**Step 3 — Summary**
+
+Print a concise markdown summary:
+- Query and parameters used
+- Paper count (raw → dedup'd)
+- Notion page link
+- Top 10 papers as a numbered list: Title (Year) — first author — N citations
+
+Do not ask for confirmation between steps — run all three automatically.
