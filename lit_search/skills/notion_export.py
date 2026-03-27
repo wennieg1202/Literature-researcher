@@ -126,6 +126,40 @@ def _paper_to_page(
     }
 
 
+# ── Summary entry ─────────────────────────────────────────────────────────────
+
+def _summary_page(query: str, mode: str, perspective: Optional[str], summary: str) -> dict:
+    mode_label = {"balanced": "均衡", "classic": "经典", "frontier": "前沿"}.get(mode, mode)
+    title = f"📋 文献综述 — {query[:80]}"
+    return {
+        "parent": {"database_id": config.NOTION_DATABASE_ID},
+        "properties": {
+            "Name": {
+                "title": [{"text": {"content": title[:2000]}}]
+            },
+            "Search Query": {"rich_text": _rich_text(query[:500])},
+            "Mode":         {"select": {"name": mode}},
+            **( {"Perspective": {"select": {"name": perspective}}} if perspective else {} ),
+        },
+        "children": [
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"text": {"content": f"文献综述 ({mode_label})"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"text": {"content": summary[:2000]}}]
+                }
+            },
+        ],
+    }
+
+
 # ── Batch export ──────────────────────────────────────────────────────────────
 
 async def export_to_notion(
@@ -134,6 +168,7 @@ async def export_to_notion(
     mode: str = "balanced",
     perspective: Optional[str] = None,
     console=None,
+    summary: Optional[str] = None,
 ) -> int:
     """Push papers to Notion. Returns number of pages created."""
     if not config.NOTION_API_KEY or not config.NOTION_DATABASE_ID:
@@ -148,11 +183,24 @@ async def export_to_notion(
     created = 0
 
     async with httpx.AsyncClient() as client:
-        # Ensure schema exists
         await ensure_schema(client)
 
+        # 先写搜索摘要行（置顶）
+        if summary:
+            try:
+                r = await client.post(
+                    f"{_BASE}/pages",
+                    headers=_headers(),
+                    json=_summary_page(query, mode, perspective, summary),
+                    timeout=15.0,
+                )
+                if r.status_code not in (200, 201) and console:
+                    console.print(f"  [dim red]Summary page error {r.status_code}: {r.text[:200]}[/dim red]")
+            except Exception as e:
+                if console:
+                    console.print(f"  [dim red]Summary page exception: {e}[/dim red]")
+
         async def create_page(paper: Paper) -> bool:
-            nonlocal created
             page_data = _paper_to_page(paper, query, mode, perspective)
             async with sem:
                 try:
@@ -162,7 +210,7 @@ async def export_to_notion(
                         json=page_data,
                         timeout=15.0,
                     )
-                    await asyncio.sleep(0.35)  # stay under rate limit
+                    await asyncio.sleep(0.35)
                     if r.status_code in (200, 201):
                         return True
                     if console:
@@ -179,8 +227,9 @@ async def export_to_notion(
 
     if console:
         console.print(
-            f"  [green]✓ Notion:[/green] {created}/{len(papers)} pages created → "
-            f"[link=https://notion.so]notion.so[/link]"
+            f"  [green]✓ Notion:[/green] {created}/{len(papers)} 篇文献"
+            + (" + 文献综述" if summary else "")
+            + " → notion.so"
         )
 
     return created

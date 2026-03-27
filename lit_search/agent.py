@@ -173,7 +173,8 @@ async def run(
     if save_notion:
         console.print("[bold]Saving to Notion...[/bold]")
         await export_to_notion(
-            papers, query, mode=mode, perspective=perspective, console=console
+            papers, query, mode=mode, perspective=perspective, console=console,
+            summary=summary,
         )
 
     console.print()
@@ -249,7 +250,8 @@ async def _run_claude_only(
     if save_notion:
         console.print("[bold]Saving to Notion...[/bold]")
         await export_to_notion(
-            papers, query, mode=mode, perspective=perspective, console=console
+            papers, query, mode=mode, perspective=perspective, console=console,
+            summary=summary,
         )
 
     console.print()
