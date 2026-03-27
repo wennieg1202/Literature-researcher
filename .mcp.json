@@ -4,6 +4,11 @@
       "command": "python3",
       "args": ["scihub_mcp/sci_hub_server.py"],
       "cwd": "/home/user/Literature-researcher"
+    },
+    "lit_search": {
+      "command": "python3",
+      "args": ["lit_search_mcp/server.py"],
+      "cwd": "/home/user/Literature-researcher"
     }
   }
 }
