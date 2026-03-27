@@ -4,10 +4,11 @@ Arguments: $ARGUMENTS
 
 ---
 
-Parse $ARGUMENTS as follows (all optional except query):
+**Parse $ARGUMENTS** (all optional except query):
 - First quoted string or the full input = **query**
 - `classic` / `frontier` / `balanced` = **mode** (default: balanced)
-- `profession` / `organization` / `symbolic` / `stratification` / `network` / `knowledge` = **perspective** (default: none)
+- A known perspective key = **perspective** (default: none)
+- Any other single word that looks like a discipline or theory = **unknown perspective** → see below
 - `snowball` = set do_snowball=true
 - A number (e.g. `30`) = **max_results** (default: 20)
 
@@ -15,10 +16,20 @@ If $ARGUMENTS is empty, ask the user for a query before proceeding.
 
 ---
 
+**Auto-add unknown perspectives**
+
+Before searching, call `mcp__lit_search__list_perspectives_tool` to get the current list.
+
+If the user specified a perspective that is NOT in that list:
+1. Use your knowledge to generate appropriate `theorists`, `core_concepts` (6-10 items), and `seed_terms` (6-10 database-friendly phrases) for that perspective.
+2. Call `mcp__lit_search__add_perspective` to save it permanently.
+3. Confirm to the user: "Added new perspective: [label]" — then continue with the search.
+
+---
+
 **Step 1 — Search**
 
 Call `mcp__lit_search__search_literature` with the parsed parameters.
-Show the user a brief status while it runs.
 When done, report:
 - Total papers found and after dedup
 - Source breakdown (by_source from stats)
@@ -41,4 +52,4 @@ Print a concise markdown summary:
 - Notion page link
 - Top 10 papers as a numbered list: Title (Year) — first author — N citations
 
-Do not ask for confirmation between steps — run all three automatically.
+Do not ask for confirmation between steps — run all automatically.

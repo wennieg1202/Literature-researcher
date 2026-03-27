@@ -28,6 +28,7 @@ from notion_export import export_summary_to_notion
 from query_expand import expand_query, get_search_terms
 from search_apis import multi_search
 from snowball import snowball
+from sociology import list_perspectives, save_perspective
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -274,6 +275,57 @@ async def download_pdfs(
             failed.append({"title": title, "doi": None, "reason": "no DOI or PDF URL"})
 
     return {"downloaded": downloaded, "failed": failed}
+
+
+# ─── Tool 4: add_perspective ──────────────────────────────────────────────────
+
+@mcp.tool()
+async def add_perspective(
+    key: str,
+    label: str,
+    theorists: List[str],
+    core_concepts: List[str],
+    seed_terms: List[str],
+) -> Dict[str, Any]:
+    """
+    Add a new research perspective to the library (persisted across sessions).
+
+    Call this automatically when:
+    - The user mentions a theoretical lens or discipline not yet in the library.
+    - A search query implies a perspective that has no matching key.
+    Use Claude's knowledge to generate appropriate theorists, concepts and terms
+    if the user only provides a name.
+
+    Args:
+        key: Short snake_case identifier, e.g. "critical_realism".
+        label: Human-readable name, e.g. "Critical Realism".
+        theorists: Key scholars, e.g. ["Bhaskar", "Archer", "Sayer"].
+        core_concepts: 6-12 central theoretical concepts.
+        seed_terms: 6-12 database-friendly search phrases.
+
+    Returns:
+        {"saved": True/False, "key": key, "all_perspectives": {key: label, ...}}
+    """
+    ok = await asyncio.to_thread(
+        save_perspective, key, label, theorists, core_concepts, seed_terms
+    )
+    return {
+        "saved": ok,
+        "key": key.strip().lower().replace(" ", "_"),
+        "all_perspectives": list_perspectives(),
+    }
+
+
+@mcp.tool()
+async def list_perspectives_tool() -> Dict[str, Any]:
+    """
+    List all available research perspectives (built-in + custom).
+
+    Returns:
+        {"perspectives": {"key": "Label", ...}, "total": N}
+    """
+    all_p = list_perspectives()
+    return {"perspectives": all_p, "total": len(all_p)}
 
 
 # ─── entry point ──────────────────────────────────────────────────────────────
