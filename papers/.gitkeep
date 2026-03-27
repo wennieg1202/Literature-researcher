@@ -1,0 +1,4 @@
+此目录用于保存文献搜索结果。
+
+search_literature 工具会在此生成 .bib 文件，
+download_pdfs 工具默认将 PDF 下载至 papers/downloads/ 子目录。

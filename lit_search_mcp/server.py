@@ -45,7 +45,7 @@ async def search_literature(
     sources: Optional[List[str]] = None,
     max_results: int = 20,
     do_snowball: bool = False,
-    bib_output: str = "results.bib",
+    bib_output: str = "papers/results.bib",
 ) -> Dict[str, Any]:
     """
     Search academic literature across up to 8 sources and return ranked results.
@@ -123,6 +123,7 @@ async def search_literature(
 
     # 5. BibTeX export
     bib_path = Path(os.getcwd()) / bib_output
+    bib_path.parent.mkdir(parents=True, exist_ok=True)
     with open(bib_path, "w", encoding="utf-8") as f:
         for p in ranked:
             f.write(p.to_bibtex())
@@ -189,7 +190,7 @@ async def export_to_notion(
 @mcp.tool()
 async def download_pdfs(
     papers: List[Dict[str, Any]],
-    output_dir: str = "downloads",
+    output_dir: str = "papers/downloads",
 ) -> Dict[str, Any]:
     """
     Download PDFs for a list of papers using Sci-Hub (for DOI-based lookup)

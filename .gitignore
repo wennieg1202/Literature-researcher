@@ -4,5 +4,7 @@ __pycache__/
 .env
 .venv/
 downloads/
+papers/downloads/
 *.pdf
+!papers/*.bib
 .claude/settings.local.json
